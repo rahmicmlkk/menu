@@ -42,14 +42,13 @@ def init_db():
 
 conn = init_db()
 
-# CSS TASARIMI (BÜYÜK VE NET YAZILAR)
+# CSS TASARIMI
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff; color: #000000; }
     h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, span { color: #000000 !important; font-weight: bold; }
     .main-title { font-size: 45px; color: #1e3a8a !important; font-weight: 900; text-align: center; }
     
-    /* Kullanımı Kolay Büyük Masa ve Ürün Butonları */
     div.stButton > button { 
         border-radius: 12px; border: 2px solid #1e3a8a; 
         color: #000000 !important; background-color: #f1f5f9;
@@ -57,26 +56,16 @@ st.markdown("""
     }
     div.stButton > button:hover { background-color: #1e3a8a; color: white !important; }
     
-    /* Küçük Miktar Düzenleme Butonları İçin Özel CSS (+ ve - butonları) */
-    .qty-btn button {
-        height: 35px !important;
-        font-size: 16px !important;
-        border: 1px solid #cbd5e1 !important;
-    }
+    .qty-btn button { height: 35px !important; font-size: 16px !important; border: 1px solid #cbd5e1 !important; }
     
-    /* Kategori Sekme Tasarımları */
     .stTabs [data-baseweb="tab"] {
-        color: #000000 !important;
-        font-size: 18px !important;
-        font-weight: 700 !important;
-        background-color: #e2e8f0 !important;
-        border-radius: 8px 8px 0 0;
-        padding: 12px 22px;
+        color: #000000 !important; font-size: 18px !important; font-weight: 700 !important;
+        background-color: #e2e8f0 !important; border-radius: 8px 8px 0 0; padding: 12px 22px;
     }
     .stTabs [aria-selected="true"] { background-color: #1e3a8a !important; color: #ffffff !important; }
     </style>
     <div class="main-title">🌊 YALI BALIK PRO ERP</div>
-    <p style='text-align:center; color: #64748b !important; font-weight: normal;'>Hızlı Servis ve Adisyon Sistemi v4.4</p>
+    <p style='text-align:center; color: #64748b !important; font-weight: normal;'>Hızlı Servis ve Adisyon Sistemi v4.5</p>
 """, unsafe_allow_html=True)
 
 # GİRİŞ SİSTEMİ
@@ -99,10 +88,24 @@ if st.sidebar.button("Güvenli Çıkış"):
 
 def get_tables(): return pd.read_sql("SELECT * FROM tables", conn)
 def get_menu(): return pd.read_sql("SELECT * FROM menu", conn)
+
+# 🔴 KESİN ÇÖZÜM: Zamanlayıcı fonksiyonu çökmelere karşı tamamen izole edildi
 def get_elapsed(opened_at):
-    if not opened_at or str(opened_at) == "None": return ""
-    diff = datetime.now() - datetime.strptime(str(opened_at), "%Y-%m-%d %H:%M:%S")
-    return f"\n({diff.seconds // 60} dk)"
+    if not opened_at or opened_at is None:
+        return ""
+    
+    val = str(opened_at).strip()
+    if val == "" or val.lower() == "none" or val == "NULL":
+        return ""
+        
+    try:
+        diff = datetime.now() - datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+        return f"\n({diff.seconds // 60} dk)"
+    except Exception:
+        # Format uyuşmazlığı olursa sistemi çökertme, boş geç
+        return ""
+
+if 'menu_message' not in st.session_state: st.session_state.menu_message = None
 
 # ANA SEKMELER
 tabs = ["⚓ Salon Planı", "🍳 Mutfak", "📅 Rezervasyon", "📈 Raporlar & Admin"]
@@ -112,7 +115,7 @@ else: active_tabs = tabs
 
 sel_tab = st.sidebar.radio("Menü", active_tabs)
 
-# --- SALON PLANI (KULLANIM ODAKLI) ---
+# --- SALON PLANI ---
 if sel_tab == "⚓ Salon Planı":
     col_map, col_ops = st.columns([5, 4])
     tables_df = get_tables()
@@ -135,7 +138,7 @@ if sel_tab == "⚓ Salon Planı":
             t_name = st.session_state.active_table
             t_info = tables_df[tables_df['name'] == t_name].iloc[0]
             
-            st.markdown(f"### 🍽 ... {t_name} ({t_info['status']})")
+            st.markdown(f"### 🍽️ Masa: {t_name} ({t_info['status']})")
             
             if t_info['status'] == "Boş":
                 if st.button("🔓 Masayı Aç ve Sipariş Al", type="primary", use_container_width=True):
@@ -146,13 +149,11 @@ if sel_tab == "⚓ Salon Planı":
                 st.write("---")
                 menu_df = get_menu()
                 
-                # 🔴 ÖZELLİK 3: AKILLI ARAMA ÇUBUĞU
-                search_query = st.text_input("🔍 Hızlı Ürün Ara (Örn: Kalamar, Su...)", placeholder="Yazmaya başlayın...")
+                search_query = st.text_input("🔍 Hızlı Ürün Ara...", placeholder="Yazmaya başlayın...")
                 
                 if search_query.strip() != "":
-                    # Arama yapılıyorsa sadece aranan ürünleri büyük butonlar halinde listele
                     st.markdown("🎯 Arama Sonuçları:")
-                    filtered_menu = menu_df[menu_df['name'].str.lower().contains(search_query.lower(), na=False)]
+                    filtered_menu = menu_df[menu_df['name'].str.lower().str.contains(search_query.lower(), na=False)]
                     if filtered_menu.empty:
                         st.info("Ürün bulunamadı.")
                     else:
@@ -164,11 +165,9 @@ if sel_tab == "⚓ Salon Planı":
                                 conn.commit()
                                 st.rerun()
                 else:
-                    # 🔴 ÖZELLİK 1: SEKMELİ KATEGORİLER VE "EN ÇOK SATANLAR"
                     categories = ["🔥 En Çok Satanlar"] + list(menu_df['category'].unique())
                     menu_tabs = st.tabs(categories)
                     
-                    # EN ÇOK SATANLAR SEKMESİ (Sabit Hızlı Seçim Ürünleri)
                     with menu_tabs[0]:
                         fast_items = ["Büyük Su", "Roka Salatası", "Şalgam", "Levrek Marin"]
                         fast_df = menu_df[menu_df['name'].isin(fast_items)]
@@ -180,13 +179,12 @@ if sel_tab == "⚓ Salon Planı":
                                 conn.commit()
                                 st.rerun()
                     
-                    # DİĞER STANDART KATEGORİLER
                     for index, cat_name in enumerate(categories[1:], start=1):
                         with menu_tabs[index]:
                             cat_items = menu_df[menu_df['category'] == cat_name]
                             btn_cols = st.columns(2)
                             for item_idx, item_row in cat_items.reset_index().iterrows():
-                                btn_label = f"{item_row['name']}\n{item_row['price']} TL (Stok: {item_row['stock']})"
+                                btn_label = f"{item_row['name']}\n{item_row['price']} TL"
                                 if btn_cols[item_idx % 2].button(btn_label, key=f"add_{t_name}_{item_row['name']}", use_container_width=True):
                                     if item_row['stock'] >= 1:
                                         conn.execute("INSERT INTO sales (item_name, price, method, date) VALUES (?,?,?,?)", (item_row['name'], item_row['price'], "Bekliyor", t_name))
@@ -196,7 +194,6 @@ if sel_tab == "⚓ Salon Planı":
                                         st.rerun()
                                     else: st.error("Stok bitti!")
                 
-                # --- GÜNCEL ADİSÝON VE MİKTAR AYARLAMA ---
                 st.write("---")
                 st.markdown("#### 🧾 Güncel Adisyon")
                 active_sales = pd.read_sql(f"SELECT * FROM sales WHERE date='{t_name}' AND method='Bekliyor'", conn)
@@ -204,13 +201,8 @@ if sel_tab == "⚓ Salon Planı":
                 if active_sales.empty:
                     st.info("Adisyon boş.")
                 else:
-                    # Ürünleri gruplayıp miktarlarını hesaplıyoruz
-                    summary = active_sales.groupby('item_name').agg(
-                        Adet=('id', 'count'),
-                        Tek_Fiyat=('price', 'first')
-                    ).reset_index()
+                    summary = active_sales.groupby('item_name').agg(Adet=('id', 'count'), Tek_Fiyat=('price', 'first')).reset_index()
                     
-                    # 🔴 ÖZELLİK 2: ADİSYON İÇİNDE ANLIK + / - BUTONLARI
                     for _, s_row in summary.iterrows():
                         c_name, c_qty, c_price = s_row['item_name'], s_row['Adet'], s_row['Tek_Fiyat']
                         
@@ -218,23 +210,18 @@ if sel_tab == "⚓ Salon Planı":
                         col_item.write(f"🔹 **{c_name}** ({c_price * c_qty} TL)")
                         col_qty.markdown(f"<p style='text-align:center; font-size:18px;'>{c_qty}</p>", unsafe_allow_html=True)
                         
-                        # Eksi Butonu (Miktarı azaltır, 1 ise tamamen siler)
-                        st.markdown('<div class="qty-btn">', unsafe_allow_html=True)
                         if col_minus.button("➖", key=f"min_{t_name}_{c_name}"):
-                            # En son eklenen 1 adet kaydı bul ve sil
                             last_id = active_sales[active_sales['item_name'] == c_name]['id'].max()
                             conn.execute(f"DELETE FROM sales WHERE id={last_id}")
                             conn.execute(f"UPDATE menu SET stock = stock + 1 WHERE name='{c_name}'")
                             conn.commit()
                             st.rerun()
                             
-                        # Artı Butonu (Miktarı artırır)
                         if col_plus.button("➕", key=f"pls_{t_name}_{c_name}"):
                             conn.execute("INSERT INTO sales (item_name, price, method, date) VALUES (?,?,?,?)", (c_name, c_price, "Bekliyor", t_name))
                             conn.execute(f"UPDATE menu SET stock = stock - 1 WHERE name='{c_name}'")
                             conn.commit()
                             st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
                     
                     total_val = active_sales['price'].sum()
                     st.markdown(f"### 💰 Toplam Hesap: {total_val} TL")
@@ -246,7 +233,7 @@ if sel_tab == "⚓ Salon Planı":
                         conn.commit()
                         st.rerun()
 
-# --- DİĞER MODÜLLER (MUTFAK, REZERVASYON, RAPOR) DEĞİŞMEDİ ---
+# --- DİĞER MODÜLLER ---
 elif sel_tab == "🍳 Mutfak":
     st.subheader("👨‍🍳 Pişirme Listesi")
     active_orders = pd.read_sql("SELECT * FROM sales WHERE method='Bekliyor'", conn)
