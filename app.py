@@ -65,7 +65,7 @@ st.markdown("""
     }
     </style>
     <div class="main-title">🌊 YALI BALIK PRO ERP</div>
-    <p style='text-align:center; color: #64748b !important;'>Kurumsal Restoran Yönetim Sistemi v4.1</p>
+    <p style='text-align:center; color: #64748b !important;'>Kurumsal Restoran Yönetim Sistemi v4.2</p>
 """, unsafe_allow_html=True)
 
 # 3. GİRİŞ SİSTEMİ (AUTH)
@@ -92,10 +92,16 @@ if st.sidebar.button("Güvenli Çıkış"):
 # 4. FONKSİYONLAR
 def get_tables(): return pd.read_sql("SELECT * FROM tables", conn)
 def get_menu(): return pd.read_sql("SELECT * FROM menu", conn)
+
+# 🔴 HATA ÇÖZÜMÜ: Boş değer (None) kontrolü eklendi
 def get_elapsed(opened_at):
-    if not opened_at: return ""
-    diff = datetime.now() - datetime.strptime(opened_at, "%Y-%m-%d %H:%M:%S")
-    return f"{diff.seconds // 60} dk"
+    if not opened_at or opened_at is None or str(opened_at).strip() == "" or str(opened_at) == "None": 
+        return ""
+    try:
+        diff = datetime.now() - datetime.strptime(str(opened_at), "%Y-%m-%d %H:%M:%S")
+        return f"\n({diff.seconds // 60} dk)"
+    except:
+        return ""
 
 # Session state üzerinden anlık geri bildirim mesajı takibi
 if 'menu_message' not in st.session_state:
@@ -128,7 +134,8 @@ if sel_tab == "⚓ Salon Planı":
             res_check = pd.read_sql(f"SELECT * FROM reservations WHERE table_name='{row['name']}'", conn)
             if not res_check.empty and row['status'] == "Boş": color = "🔵"
 
-            label = f"{color} {row['name']}\n{get_elapsed(row['opened_at'])}"
+            # Düzenlenmiş zaman verisi butona ekleniyor
+            label = f"{color} {row['name']}{get_elapsed(row['opened_at'])}"
             if grid[i%3].button(label, key=f"btn_{row['name']}", use_container_width=True):
                 st.session_state.active_table = row['name']
 
@@ -214,15 +221,13 @@ elif sel_tab == "📈 Raporlar & Admin":
     st.divider()
     st.subheader("📦 Stok ve Menü Yönetimi")
     
-    # Eğer kayıt başarılı olduysa yeşil mesajı burada gösteriyoruz
     if st.session_state.menu_message:
         st.success(st.session_state.menu_message)
-        st.session_state.menu_message = None # Gösterdikten sonra sıfırla
+        st.session_state.menu_message = None
         
     st.dataframe(get_menu(), use_container_width=True)
     
     if st.checkbox("Ürün Ekle/Güncelle", value=True):
-        # OTOMATİK SİLME ÖZELLİĞİ: clear_on_submit=True yapıldı
         with st.form("menu_form", clear_on_submit=True):
             st.markdown("##### ➕ Yeni Ürün Bilgileri")
             f_cat = st.selectbox("Kategori", ["Meze", "Rakı", "Denizden", "Tatlı"])
@@ -238,6 +243,5 @@ elif sel_tab == "📈 Raporlar & Admin":
                 else:
                     conn.execute("INSERT OR REPLACE INTO menu VALUES (?,?,?,?)", (f_cat, f_name, f_price, f_stock))
                     conn.commit()
-                    # Başarı yazısını session_state'e kaydet (sayfa yenilendiğinde kutu temizlenmiş ve yazı kalmış olacak)
                     st.session_state.menu_message = f"✅ '{f_name}' ürünü başarıyla menüye eklendi ve stok güncellendi!"
                     st.rerun()
