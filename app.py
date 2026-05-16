@@ -4,14 +4,36 @@ from datetime import datetime
 # Sayfa ayarları
 st.set_page_config(page_title="Yalı Balık POS Ultimate", page_icon="🌊", layout="wide")
 
-# CSS Tasarımı
+# ==========================================
+# GÜÇLÜ VE ZARİF CSS TASARIMI (SİYAH KATEGORİLER)
+# ==========================================
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; font-family: 'Segoe UI', Tahoma, sans-serif; }
     .main-title { font-size: 42px; color: #0f172a; font-weight: 800; text-align: center; margin-bottom: 5px; }
     .sub-title { font-size: 16px; color: #64748b; text-align: center; margin-bottom: 30px; font-weight: 400; }
+    
+    /* Buton Tasarımları */
     div.stButton > button { border-radius: 10px; transition: 0.3s; font-weight: bold; }
     div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    
+    /* KATEGORİ (SEKME) İSİMLERİNİ SİYAH YAPMA */
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { 
+        color: #000000 !important; /* Yazılar Siyah */
+        font-weight: 600;
+        background-color: #e2e8f0;
+        border-radius: 8px 8px 0 0;
+        padding: 10px 20px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #ffffff !important;
+        color: #000000 !important; /* Aktif Kategori Yazısı Siyah */
+        border-bottom: 3px solid #000000 !important; /* Alt Çizgi Siyah */
+        font-weight: 800 !important;
+    }
+
+    /* Adisyon Fişi Tasarımı */
     .receipt { background: #fff; padding: 20px; border: 1px dashed #333; width: 300px; font-family: monospace; color: #000; margin: auto; }
     .receipt-header { text-align: center; font-weight: bold; font-size: 18px; border-bottom: 1px dashed #333; padding-bottom: 10px; margin-bottom: 10px; }
     </style>
@@ -24,7 +46,6 @@ st.markdown("""
 # ==========================================
 if 'tables' not in st.session_state:
     masa_isimleri = ["Deniz 1", "Deniz 2", "Deniz 3", "Deniz 4", "Salon 1", "Salon 2", "Salon 3", "Loca 1", "VIP"]
-    # kitchen_status eklendi: "Bekliyor", "Mutfakta", "Hazır"
     st.session_state.tables = {
         isim: {"status": "Boş", "orders": {}, "opened_at": None, "kitchen_status": "Bekliyor"} 
         for isim in masa_isimleri
@@ -50,7 +71,7 @@ def get_elapsed_time(opened_at_str):
     mins = (datetime.now() - opened_at).seconds // 60
     return f"⏱️ {mins} dk"
 
-# 3 Sekmeli Yapı: Salon, Mutfak ve Yönetim
+# 3 Sekmeli Yapı
 tab1, tab_mutfak, tab2 = st.tabs(["⚓ Salon (Garson)", "🍳 Mutfak (Aşçı)", "⚙️ Yönetim (Admin)"])
 
 # ==========================================
@@ -66,18 +87,24 @@ with tab1:
             for i, (t_name, t_data) in enumerate(st.session_state.tables.items()):
                 time_info = f"\n({get_elapsed_time(t_data['opened_at'])})" if t_data["opened_at"] else ""
                 
-                # Mutfak durumuna göre ikonlar
                 k_status = ""
                 if t_data["kitchen_status"] == "Mutfakta": k_status = " ⏳"
                 elif t_data["kitchen_status"] == "Hazır": k_status = " ✅"
                 
-                if t_data["status"] == "Boş": emoji, btn_label = "🟢", f"{emoji} {t_name}"
-                elif t_data["status"] == "Açık" and len(t_data["orders"]) == 0: emoji, btn_label = "🟡", f"{emoji} {t_name} {time_info}"
-                else: emoji, btn_label = "🔴", f"{emoji} {t_name} {k_status} {time_info}"
+                # HATA ÇÖZÜMÜ: Atamalar ayrıldı
+                if t_data["status"] == "Boş": 
+                    emoji = "🟢"
+                    btn_label = f"{emoji} {t_name}"
+                elif t_data["status"] == "Açık" and len(t_data["orders"]) == 0: 
+                    emoji = "🟡"
+                    btn_label = f"{emoji} {t_name} {time_info}"
+                else: 
+                    emoji = "🔴"
+                    btn_label = f"{emoji} {t_name} {k_status} {time_info}"
                     
                 if grid_cols[i % 3].button(btn_label, key=f"tbl_{t_name}", use_container_width=True):
                     st.session_state.selected_table = t_name
-                    st.session_state.print_receipt = None # Fişi kapa
+                    st.session_state.print_receipt = None
             
         with col_right:
             st.markdown("### 🛠️ Masa İşlemleri")
@@ -98,7 +125,6 @@ with tab1:
                         st.session_state.view_mode = "masa_detay"
                         st.rerun()
                         
-                    # Mutfak bildirimini sıfırlama (Yemekler servis edilince)
                     if k_status_text == "Hazır":
                         if st.button("🍽️ Yemekleri Servis Ettim", use_container_width=True):
                             st.session_state.tables[target_table]["kitchen_status"] = "Bekliyor"
@@ -120,7 +146,6 @@ with tab1:
         
         with detay_col1:
             st.markdown("### 🦀 Menü")
-            # 💡 YENİ ÖZELLİK: SİPARİŞ NOTU
             siparis_notu = st.text_input("📝 Sipariş Notu (Örn: Acısız, Az pişmiş)", placeholder="Notu yazıp ürüne tıklayın...")
             
             categories = list(st.session_state.menu.keys())
@@ -132,8 +157,6 @@ with tab1:
                     cat_cols = st.columns(3)
                     for i, (item_name, item_price) in enumerate(cat_items.items()):
                         if cat_cols[i % 3].button(f"{item_name}\n{item_price} ₺", key=f"itm_{cat_name}_{item_name}", use_container_width=True):
-                            
-                            # Nota göre ürün ismini güncelle (Ayrı kalem olarak ekler)
                             final_item_name = f"{item_name} ({siparis_notu})" if siparis_notu.strip() else item_name
                             
                             current_orders = st.session_state.tables[current_t]["orders"]
@@ -143,7 +166,7 @@ with tab1:
                                 st.session_state.tables[current_t]["orders"][final_item_name] = {"price": item_price, "quantity": 1}
                             
                             st.session_state.tables[current_t]["status"] = "Dolu"
-                            st.session_state.tables[current_t]["kitchen_status"] = "Mutfakta" # Mutfağa gönder
+                            st.session_state.tables[current_t]["kitchen_status"] = "Mutfakta" 
                             st.rerun()
                             
         with detay_col2:
@@ -160,20 +183,17 @@ with tab1:
                     item_total = details["price"] * details["quantity"]
                     st.markdown(f"**{details['quantity']}x {item_name}** <span style='float:right;'>{item_total} ₺</span>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
-                st.markdown(f"<h3 style='text-align: right;'>Ara Toplam: {total} ₺</h3></div><br>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='text-align: right; color: black;'>Ara Toplam: {total} ₺</h3></div><br>", unsafe_allow_html=True)
                 
-                # 💡 YENİ ÖZELLİK: İNDİRİM / İKRAM
                 ikram_tutari = st.number_input("🎁 İndirim / İkram (₺)", min_value=0, max_value=total, step=10, value=0)
                 odenecek_tutar = total - ikram_tutari
                 if ikram_tutari > 0:
                     st.success(f"İndirimli Ödenecek Tutar: **{odenecek_tutar} ₺**")
 
-                # 💡 YENİ ÖZELLİK: FİŞ YAZDIRMA
                 if st.button("🖨️ Adisyon Yazdır", use_container_width=True):
                     st.session_state.print_receipt = current_t
                 
                 if st.session_state.print_receipt == current_t:
-                    # Sanal Fiş Çıktısı (HTML/CSS)
                     receipt_html = f"""
                     <div class="receipt">
                         <div class="receipt-header">YALI BALIK<br><span style='font-size:12px; font-weight:normal;'>Tarih: {datetime.now().strftime("%d.%m.%Y %H:%M")}</span><br>Masa: {current_t}</div>
@@ -189,7 +209,6 @@ with tab1:
                 st.divider()
                 st.markdown("#### 💳 Tahsilat ve Kapatma")
                 
-                # Standart Ödemeler
                 col_n, col_k = st.columns(2)
                 if col_n.button("Nakit (Tamamı)", type="primary", use_container_width=True):
                     st.session_state.sales["Nakit"] += odenecek_tutar
@@ -204,7 +223,6 @@ with tab1:
                     st.session_state.view_mode = "masalar"
                     st.rerun()
 
-                # 💡 YENİ ÖZELLİK: ALMAN USULÜ / PARÇALI ÖDEME
                 with st.expander("✂️ Parçalı Ödeme (Alman Usulü)"):
                     alinan_nakit = st.number_input("Alınan Nakit (₺)", min_value=0, max_value=odenecek_tutar, step=50, value=0)
                     kalan_kart = odenecek_tutar - alinan_nakit
@@ -220,7 +238,7 @@ with tab1:
                         st.rerun()
 
 # ==========================================
-# SEKME 2: MUTFAK PANELİ (KDS - KITCHEN DISPLAY SYSTEM)
+# SEKME 2: MUTFAK PANELİ
 # ==========================================
 with tab_mutfak:
     st.markdown("## 👨‍🍳 Mutfak Sipariş Ekranı")
@@ -240,9 +258,7 @@ with tab_mutfak:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Sipariş kalemlerini yazdır
                 for urun_adi, detay in st.session_state.tables[m_name]["orders"].items():
-                    # Notları kırmızı yapmak için basit kontrol
                     if "(" in urun_adi and ")" in urun_adi:
                         ana_urun, not_kismi = urun_adi.split("(", 1)
                         st.write(f"- **{detay['quantity']}x {ana_urun}** *(<span style='color:red;'>{not_kismi}</span>*", unsafe_allow_html=True)
