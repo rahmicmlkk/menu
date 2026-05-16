@@ -5,22 +5,35 @@ from datetime import datetime
 st.set_page_config(page_title="Yalı Balık POS Ultimate", page_icon="🌊", layout="wide")
 
 # ==========================================
-# GÜÇLÜ VE ZARİF CSS TASARIMI (SİYAH KATEGORİLER)
+# GÜÇLÜ VE ZARİF CSS TASARIMI (BEYAZ YAZI SORUNU ÇÖZÜLDÜ)
 # ==========================================
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; font-family: 'Segoe UI', Tahoma, sans-serif; }
-    .main-title { font-size: 42px; color: #0f172a; font-weight: 800; text-align: center; margin-bottom: 5px; }
-    .sub-title { font-size: 16px; color: #64748b; text-align: center; margin-bottom: 30px; font-weight: 400; }
     
-    /* Buton Tasarımları */
-    div.stButton > button { border-radius: 10px; transition: 0.3s; font-weight: bold; }
+    /* 🔴 KARANLIK MOD ÇAKIŞMASINI DÜZELTME: Tüm genel yazıları koyu lacivert/siyah yap */
+    h1, h2, h3, h4, h5, h6, p, label, div[data-testid="stMetricValue"], li {
+        color: #0f172a !important;
+    }
+    
+    /* Başlıklar */
+    .main-title { font-size: 42px; color: #0f172a !important; font-weight: 800; text-align: center; margin-bottom: 5px; }
+    .sub-title { font-size: 16px; color: #64748b !important; text-align: center; margin-bottom: 30px; font-weight: 400; }
+    
+    /* Buton Tasarımları ve Renkleri */
+    div.stButton > button { 
+        border-radius: 10px; transition: 0.3s; font-weight: bold; 
+        color: #0f172a !important; /* Standart buton yazıları koyu */
+    }
     div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    
+    /* Birincil (Primary) Butonların yazısını beyaz tut (Ödeme butonları) */
+    div.stButton > button[kind="primary"] p { color: #ffffff !important; }
     
     /* KATEGORİ (SEKME) İSİMLERİNİ SİYAH YAPMA */
     .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [data-baseweb="tab"] { 
-        color: #000000 !important; /* Yazılar Siyah */
+        color: #000000 !important; 
         font-weight: 600;
         background-color: #e2e8f0;
         border-radius: 8px 8px 0 0;
@@ -28,14 +41,17 @@ st.markdown("""
     }
     .stTabs [aria-selected="true"] {
         background-color: #ffffff !important;
-        color: #000000 !important; /* Aktif Kategori Yazısı Siyah */
-        border-bottom: 3px solid #000000 !important; /* Alt Çizgi Siyah */
+        color: #000000 !important; 
+        border-bottom: 3px solid #000000 !important; 
         font-weight: 800 !important;
     }
 
+    /* Mutfak ekranındaki kırmızı uyarıyı koruma */
+    span[style*="color:red"] { color: red !important; }
+
     /* Adisyon Fişi Tasarımı */
-    .receipt { background: #fff; padding: 20px; border: 1px dashed #333; width: 300px; font-family: monospace; color: #000; margin: auto; }
-    .receipt-header { text-align: center; font-weight: bold; font-size: 18px; border-bottom: 1px dashed #333; padding-bottom: 10px; margin-bottom: 10px; }
+    .receipt { background: #fff; padding: 20px; border: 1px dashed #333; width: 300px; font-family: monospace; color: #000 !important; margin: auto; }
+    .receipt-header { text-align: center; font-weight: bold; font-size: 18px; border-bottom: 1px dashed #333; padding-bottom: 10px; margin-bottom: 10px; color: #000 !important; }
     </style>
     <div class="main-title">🌊 YALI BALIK RESTORANI</div>
     <div class="sub-title">Premium POS & Mutfak Yönetimi</div>
@@ -91,7 +107,6 @@ with tab1:
                 if t_data["kitchen_status"] == "Mutfakta": k_status = " ⏳"
                 elif t_data["kitchen_status"] == "Hazır": k_status = " ✅"
                 
-                # HATA ÇÖZÜMÜ: Atamalar ayrıldı
                 if t_data["status"] == "Boş": 
                     emoji = "🟢"
                     btn_label = f"{emoji} {t_name}"
@@ -183,7 +198,7 @@ with tab1:
                     item_total = details["price"] * details["quantity"]
                     st.markdown(f"**{details['quantity']}x {item_name}** <span style='float:right;'>{item_total} ₺</span>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
-                st.markdown(f"<h3 style='text-align: right; color: black;'>Ara Toplam: {total} ₺</h3></div><br>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='text-align: right; color: black !important;'>Ara Toplam: {total} ₺</h3></div><br>", unsafe_allow_html=True)
                 
                 ikram_tutari = st.number_input("🎁 İndirim / İkram (₺)", min_value=0, max_value=total, step=10, value=0)
                 odenecek_tutar = total - ikram_tutari
@@ -254,7 +269,7 @@ with tab_mutfak:
             with m_cols[i % 3]:
                 st.markdown(f"""
                 <div style='background-color:#fff3cd; border:2px solid #ffc107; padding:15px; border-radius:10px;'>
-                    <h3 style='color:#856404; margin-top:0;'>🔔 {m_name}</h3>
+                    <h3 style='color:#856404 !important; margin-top:0;'>🔔 {m_name}</h3>
                 </div>
                 """, unsafe_allow_html=True)
                 
