@@ -11,25 +11,23 @@ st.set_page_config(page_title="Yalı Balık ERP PRO", page_icon="🌊", layout="
 def init_db():
     conn = sqlite3.connect('yali_balik.db', check_same_thread=False)
     c = conn.cursor()
-    # Masalar tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS tables 
                  (name TEXT PRIMARY KEY, status TEXT, opened_at TEXT, kitchen_status TEXT)''')
-    # Menü ve Stok tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS menu 
                  (category TEXT, name TEXT PRIMARY KEY, price REAL, stock INTEGER)''')
-    # Satışlar tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS sales 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, price REAL, method TEXT, date TEXT)''')
-    # Rezervasyon tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS reservations 
                  (table_name TEXT PRIMARY KEY, client_name TEXT, res_time TEXT)''')
     
-    # Başlangıç verilerini ekle (Eğer tablo boşsa)
     c.execute("SELECT count(*) FROM menu")
     if c.fetchone()[0] == 0:
         initial_menu = [
             ('Meze', 'Levrek Marin', 220, 50), ('Meze', 'Atom', 150, 40),
-            ('Rakı', '70lik Rakı', 1450, 10), ('Denizden', 'Levrek Izgara', 450, 30)
+            ('Meze', 'Fava', 130, 40), ('Meze', 'Lakerda', 280, 20),
+            ('Rakı', '70lik Rakı', 1450, 10), ('Rakı', 'Duble Rakı', 180, 100),
+            ('Denizden', 'Levrek Izgara', 450, 30), ('Denizden', 'Kalamar Tava', 350, 40),
+            ('Tatlı', 'Volkanik', 160, 25), ('Tatlı', 'Fırın Helva', 140, 30)
         ]
         c.executemany("INSERT INTO menu VALUES (?,?,?,?)", initial_menu)
         
@@ -42,30 +40,38 @@ def init_db():
 
 conn = init_db()
 
-# CSS TASARIMI (ULTRA NETLİK)
+# CSS TASARIMI
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff; color: #000000; }
     h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, span { color: #000000 !important; font-weight: 500; }
     .main-title { font-size: 45px; color: #1e3a8a !important; font-weight: 900; text-align: center; }
     
-    /* Butonlar */
+    /* Masa ve Fonksiyon Butonları */
     div.stButton > button { 
         border-radius: 12px; border: 2px solid #1e3a8a; 
         color: #000000 !important; background-color: #f1f5f9;
-        height: 60px; font-size: 18px;
+        height: 60px; font-size: 18px; font-weight: bold;
     }
     div.stButton > button:hover { background-color: #1e3a8a; color: white !important; }
     
-    /* Kartlar */
-    .metric-card {
-        background: #ffffff; border: 2px solid #e2e8f0;
-        padding: 20px; border-radius: 15px; text-align: center;
-        box-shadow: 5px 5px 15px rgba(0,0,0,0.05);
+    /* Kategori Sekme Tasarımları (Koyu ve Net) */
+    .stTabs [data-baseweb="tab"] {
+        color: #000000 !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        background-color: #e2e8f0 !important;
+        border-radius: 8px 8px 0 0;
+        padding: 10px 20px;
+        margin-right: 4px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1e3a8a !important;
+        color: #ffffff !important;
     }
     </style>
     <div class="main-title">🌊 YALI BALIK PRO ERP</div>
-    <p style='text-align:center; color: #64748b !important;'>Kurumsal Restoran Yönetim Sistemi v4.2</p>
+    <p style='text-align:center; color: #64748b !important;'>Kurumsal Restoran Yönetim Sistemi v4.3</p>
 """, unsafe_allow_html=True)
 
 # 3. GİRİŞ SİSTEMİ (AUTH)
@@ -83,7 +89,6 @@ if st.session_state.auth is None:
         else: st.error("Hatalı PIN!")
     st.stop()
 
-# ÇIKIŞ BUTONU (Kenar Çubuğu)
 st.sidebar.write(f"👤 Yetki: **{st.session_state.auth}**")
 if st.sidebar.button("Güvenli Çıkış"):
     st.session_state.auth = None
@@ -93,7 +98,6 @@ if st.sidebar.button("Güvenli Çıkış"):
 def get_tables(): return pd.read_sql("SELECT * FROM tables", conn)
 def get_menu(): return pd.read_sql("SELECT * FROM menu", conn)
 
-# 🔴 HATA ÇÖZÜMÜ: Boş değer (None) kontrolü eklendi
 def get_elapsed(opened_at):
     if not opened_at or opened_at is None or str(opened_at).strip() == "" or str(opened_at) == "None": 
         return ""
@@ -103,7 +107,6 @@ def get_elapsed(opened_at):
     except:
         return ""
 
-# Session state üzerinden anlık geri bildirim mesajı takibi
 if 'menu_message' not in st.session_state:
     st.session_state.menu_message = None
 
@@ -121,7 +124,8 @@ sel_tab = st.sidebar.radio("Menü", active_tabs)
 
 # --- SALON PLANI ---
 if sel_tab == "⚓ Salon Planı":
-    col_map, col_ops = st.columns([2, 1])
+    # Ekranı ikiye bölüyoruz: Sol taraf masalar, sağ taraf adisyon işlemleri
+    col_map, col_ops = st.columns([5, 4])
     tables_df = get_tables()
     
     with col_map:
@@ -134,7 +138,6 @@ if sel_tab == "⚓ Salon Planı":
             res_check = pd.read_sql(f"SELECT * FROM reservations WHERE table_name='{row['name']}'", conn)
             if not res_check.empty and row['status'] == "Boş": color = "🔵"
 
-            # Düzenlenmiş zaman verisi butona ekleniyor
             label = f"{color} {row['name']}{get_elapsed(row['opened_at'])}"
             if grid[i%3].button(label, key=f"btn_{row['name']}", use_container_width=True):
                 st.session_state.active_table = row['name']
@@ -142,42 +145,71 @@ if sel_tab == "⚓ Salon Planı":
     with col_ops:
         if 'active_table' in st.session_state:
             t_name = st.session_state.active_table
-            st.markdown(f"### Masa: {t_name}")
             t_info = tables_df[tables_df['name'] == t_name].iloc[0]
             
+            st.markdown(f"### 🍽️ Masa: {t_name} ({t_info['status']})")
+            
+            # 🔴 ÖZELLİK 2: Masa boşsa aç butonu göster, basıldığı an durumu kaydet ve direkt içine gir
             if t_info['status'] == "Boş":
-                if st.button("🔓 Masayı Aç", type="primary", use_container_width=True):
+                if st.button("🔓 Masayı Aç ve Sipariş Al", type="primary", use_container_width=True):
                     conn.execute(f"UPDATE tables SET status='Dolu', opened_at='{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}' WHERE name='{t_name}'")
                     conn.commit()
                     st.rerun()
             else:
+                # Masa doluysa veya yeni açıldıysa burası otomatik olarak listelenir
                 st.write("---")
-                menu_df = get_menu()
-                selected_item = st.selectbox("Ürün Seç", menu_df['name'])
-                qty = st.number_input("Adet", min_value=1, value=1)
                 
-                if st.button("➕ Adisyona Ekle"):
-                    item_data = menu_df[menu_df['name'] == selected_item].iloc[0]
-                    if item_data['stock'] >= qty:
-                        conn.execute("INSERT INTO sales (item_name, price, method, date) VALUES (?,?,?,?)",
-                                     (selected_item, item_data['price']*qty, "Bekliyor", t_name))
-                        conn.execute(f"UPDATE menu SET stock = stock - {qty} WHERE name='{selected_item}'")
-                        conn.execute(f"UPDATE tables SET kitchen_status='Mutfakta' WHERE name='{t_name}'")
-                        conn.commit()
-                        st.success("Sipariş mutfağa iletildi!")
-                    else:
-                        st.error("Yetersiz Stok!")
-
-                if st.button("💵 Hesabı Kapat (Nakit/Kart)"):
-                    total_res = pd.read_sql(f"SELECT SUM(price) as total FROM sales WHERE date='{t_name}' AND method='Bekliyor'", conn)
-                    total_val = total_res['total'][0] or 0
-                    st.warning(f"Toplam Tahsilat: {total_val} TL")
-                    method = st.radio("Ödeme Tipi", ["Nakit", "Kredi Kartı"])
-                    if st.button("Ödemeyi Onayla"):
+                # 🔴 ÖZELLİK 1: KATEGORİ SEKMELERİNİ GERİ GETİRME VE SİPARİŞ ALMA
+                st.markdown("#### 🦀 Menü Kategorileri")
+                menu_df = get_menu()
+                categories = menu_df['category'].unique()
+                menu_tabs = st.tabs(list(categories))
+                
+                for index, cat_name in enumerate(categories):
+                    with menu_tabs[index]:
+                        cat_items = menu_df[menu_df['category'] == cat_name]
+                        # Ürünleri yan yana 2'li butonlar halinde listele
+                        btn_cols = st.columns(2)
+                        for item_idx, item_row in cat_items.reset_index().iterrows():
+                            btn_label = f"{item_row['name']}\n({item_row['price']} TL) - Stok: {item_row['stock']}"
+                            
+                            if btn_cols[item_idx % 2].button(btn_label, key=f"add_{t_name}_{item_row['name']}", use_container_width=True):
+                                if item_row['stock'] >= 1:
+                                    # Satış kaydı ekle
+                                    conn.execute("INSERT INTO sales (item_name, price, method, date) VALUES (?,?,?,?)",
+                                                 (item_row['name'], item_row['price'], "Bekliyor", t_name))
+                                    # Stok düş
+                                    conn.execute(f"UPDATE menu SET stock = stock - 1 WHERE name='{item_row['name']}'")
+                                    # Mutfak durumunu güncelle
+                                    conn.execute(f"UPDATE tables SET kitchen_status='Mutfakta' WHERE name='{t_name}'")
+                                    conn.commit()
+                                    st.success(f"➕ {item_row['name']} adisyona eklendi!")
+                                    st.rerun()
+                                else:
+                                    st.error("⚠️ Yetersiz Stok!")
+                
+                # Mevcut Adisyon Listesi ve Hesap Kapatma
+                st.write("---")
+                st.markdown("#### 🧾 Güncel Adisyon")
+                active_sales = pd.read_sql(f"SELECT * FROM sales WHERE date='{t_name}' AND method='Bekliyor'", conn)
+                
+                if active_sales.empty:
+                    st.info("Bu masaya ait henüz bir sipariş girilmemiş.")
+                else:
+                    # Adisyon özet tablosu
+                    st.dataframe(active_sales[['item_name', 'price']], use_container_width=True, hide_index=True)
+                    total_val = active_sales['price'].sum()
+                    st.markdown(f"### 💰 Toplam: {total_val} TL")
+                    
+                    method = st.radio("Ödeme Tipi Seçin", ["Nakit", "Kredi Kartı"], horizontal=True)
+                    if st.button("💵 Hesabı Tahsil Et ve Masayı Kapat", type="primary", use_container_width=True):
                         conn.execute(f"UPDATE sales SET method='{method}', date='{datetime.now().strftime('%Y-%m-%d')}' WHERE date='{t_name}'")
                         conn.execute(f"UPDATE tables SET status='Boş', opened_at=NULL, kitchen_status='Bekliyor' WHERE name='{t_name}'")
                         conn.commit()
+                        st.success("Hesap başarıyla kapatıldı!")
                         st.rerun()
+        else:
+            st.info("İşlem yapmak için sol taraftaki restoran planından bir masaya tıklayın.")
 
 # --- MUTFAK ---
 elif sel_tab == "🍳 Mutfak":
