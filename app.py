@@ -43,7 +43,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Senin API'nde geçerli olan küresel ana liglerin kod şeması
+# Küresel ana liglerin kod şeması
 LIG_SOZLUGU = {
     "Premier League (İngiltere)": "PL",
     "La Liga (İspanya)": "PD",
@@ -57,17 +57,14 @@ LIG_SOZLUGU = {
 if "analiz_aktif" not in st.session_state: 
     st.session_state.analiz_aktif = False
 
-# --- GÜNÜ GÜNÜNE CANLI API BAĞLANTI MOTORU ---
-@st.cache_data(ttl=600)  # Günü gününe tam otonom canlı bülten için 10 dakika önbellek
-def get_daily_matches_from_api():
-    """Yarının ve bugünün bültenini API üzerinden otonom toplar"""
+# --- TARİH SEÇİMLİ API BAĞLANTI MOTORU ---
+@st.cache_data(ttl=300)  # Seçilen güne ait veriler için 5 dakika önbellek
+def get_matches_by_date(baslangic_tarihi, bitis_tarihi):
+    """Kullanıcının seçtiği tarih aralığına göre API'den maçları toplar"""
     url = f"{BASE_URL}/matches"
-    bugun = datetime.now().date()
-    yarin = bugun + timedelta(days=1)
-    
     params = {
-        "dateFrom": bugun.strftime("%Y-%m-%d"),
-        "dateTo": yarin.strftime("%Y-%m-%d")
+        "dateFrom": baslangic_tarihi.strftime("%Y-%m-%d"),
+        "dateTo": bitis_tarihi.strftime("%Y-%m-%d")
     }
     try:
         res = requests.get(url, headers=HEADERS, params=params)
@@ -78,7 +75,7 @@ def get_daily_matches_from_api():
         return "fallback"
 
 def shadow_data():
-    """API limit aşımında veya bülten boşken devreye giren akıllı yedek mekanizma"""
+    """Bülten boş olduğunda veya API hatasında devreye giren yedek mekanizma"""
     return [
         {"competition": {"name": "Premier League (İngiltere)", "code": "PL"}, "homeTeam": {"name": "Arsenal"}, "awayTeam": {"name": "Chelsea"}, "utcDate": "2026-05-18T19:45:00Z"},
         {"competition": {"name": "La Liga (İspanya)", "code": "PD"}, "homeTeam": {"name": "Real Madrid"}, "awayTeam": {"name": "Atletico Madrid"}, "utcDate": "2026-05-18T20:00:00Z"},
@@ -177,17 +174,43 @@ def yuzde_bar_ciz(pazar_adi, yuzde, renk):
 st.markdown("<h1 class='quant-title'>PREDICT PRO // ULTIMATE</h1>", unsafe_allow_html=True)
 st.markdown("<p class='quant-subtitle'>STRATEJİK PORTFÖY VE ÇOKLU PAZAR ANALİZİ</p>", unsafe_allow_html=True)
 
+# --- SİDEBAR TERCİH MERKEZİ ---
 with st.sidebar:
-    st.header("🌐 Veri Kaynakları")
+    st.header("🌐 Filtre Paneli")
+    
+    # Lig Seçimi
     secilen_ligler = st.multiselect("Taranacak Ligler", options=list(LIG_SOZLUGU.keys()), default=["Premier League (İngiltere)", "La Liga (İspanya)"])
+    
+    st.markdown("---")
+    st.header("📅 Tarih / Gün Ayarı")
+    
+    # Hızlı gün seçim butonları için bugünün tarihi
+    bugun = datetime.now().date()
+    
+    tarih_modu = st.radio("Seçim Tipi", ["Tek Gün", "Tarih Aralığı"])
+    
+    if tarih_modu == "Tek Gün":
+        secilen_tarih = st.date_input("Analiz Günü", bugun)
+        baslangic_tarihi = secilen_tarih
+        bitis_tarihi = secilen_tarih
+    else:
+        tarih_araligi = st.date_input("Tarih Aralığı Seçin", [bugun, bugun + timedelta(days=2)])
+        # Kullanıcı aralığı tam seçtiyse (başlangıç ve bitiş)
+        if isinstance(tarih_araligi, list) and len(tarih_araligi) == 2:
+            baslangic_tarihi, bitis_tarihi = tarih_araligi
+        else:
+            baslangic_tarihi = bugun
+            bitis_tarihi = bugun
+            
+    st.markdown("---")
     if st.button("SİSTEMİ ATEŞLE 🚀"):
         st.session_state.analiz_aktif = True
 
 if st.session_state.analiz_aktif:
     tum_maclar = []
     
-    with st.spinner("Piyasalar canlı veri ağından taranıyor, ihtimaller hesaplanıyor..."):
-        api_data = get_daily_matches_from_api()
+    with st.spinner(f"{baslangic_tarihi} ile {bitis_tarihi} arasındaki piyasalar taranıyor..."):
+        api_data = get_matches_by_date(baslangic_tarihi, bitis_tarihi)
         if api_data == "fallback" or not api_data:
             api_data = shadow_data()
         
@@ -205,7 +228,7 @@ if st.session_state.analiz_aktif:
                 analiz["lig"] = lig_etiket
                 tum_maclar.append(analiz)
     
-    tab_rolling, tab_kombine, tab_ligler = st.tabs(["🚀 GÜNLÜK 2.00x KASA", "💼 5 FARKLI KOMBİNE STRATEJİSİ", "🔍 MAÇ MAÇ DERİN ANALİZ"])
+    tab_rolling, tab_kombine, tab_ligler = st.tabs(["🚀 GÜNLÜK KASA", "💼 5 FARKLI KOMBİNE STRATEJİSİ", "🔍 MAÇ MAÇ DERİN ANALİZ"])
 
     # --- TAB 1: ROLLING GÜNLÜK KASA ---
     with tab_rolling:
@@ -228,7 +251,7 @@ if st.session_state.analiz_aktif:
                 st.metric("Hedef Çarpan", f"{kasa_maci['pazarlar']['1.5 Üst']['oran']:.2f}x")
                 st.success("Taraf riski bertaraf edildi, otonom gol ağı seçildi.")
         else: 
-            st.warning("Seçilen kriterlerde taranacak maç bülteni bulunamadı.")
+            st.warning("Seçilen tarihlerde ve liglerde taranacak maç bülteni bulunamadı.")
 
     # --- TAB 2: 5 FARKLI KOMBİNE STRATEJİSİ ---
     with tab_kombine:
@@ -284,4 +307,4 @@ if st.session_state.analiz_aktif:
                             with (c_bar1 if idx % 2 == 0 else c_bar2):
                                 st.markdown(yuzde_bar_ciz(f"{pazar_ismi} (@{pazar_verisi['oran']:.2f})", yuzde, renk), unsafe_allow_html=True)
 else:
-    st.info("Sol menüden analiz edilecek ligleri seçip sistemi ateşleyin.")
+    st.info("Sol menüden analiz edilecek ligleri ve tarihleri seçip sistemi ateşleyin.")
